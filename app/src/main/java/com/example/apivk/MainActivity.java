@@ -2,6 +2,8 @@ package com.example.apivk;
 
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
 import android.content.Intent;
 import android.os.Bundle;
@@ -18,20 +20,32 @@ import com.vk.sdk.api.VKError;
 import com.vk.sdk.api.VKParameters;
 import com.vk.sdk.api.VKRequest;
 import com.vk.sdk.api.VKResponse;
+import com.vk.sdk.api.model.VKApiPhoto;
 import com.vk.sdk.api.model.VKList;
+
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
 
     ListView listView;
 
-    public String[] scope = new String[]{VKScope.FRIENDS};
+    public String[] scope = new String[]{VKScope.WALL, VKScope.FRIENDS};
+
+    RecyclerAdapter recyclerAdapter;
+    RecyclerView recyclerView;
+
+    List<TaskModel> taskModels = new ArrayList<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        listView = findViewById(R.id.listView);
+        initRecyclerView();
 
         VKSdk.login(this, scope);
 
@@ -39,10 +53,11 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
-        if (!VKSdk.onActivityResult(requestCode, resultCode, data, new VKCallback<VKAccessToken>() {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (VKSdk.onActivityResult(requestCode, resultCode, data, new VKCallback<VKAccessToken>() {
             @Override
             public void onResult(VKAccessToken res) {
-                VKRequest vkRequest = VKApi.friends().get(VKParameters.from(VKApiConst.FIELDS, "firstName,lastName"));
+                VKRequest vkRequest = VKApi.friends().get(VKParameters.from(VKApiConst.FIELDS, "firstName,lastName,photo"));
                 vkRequest.executeWithListener(new VKRequest.VKRequestListener() {
                     @Override
                     public void onComplete(VKResponse response) {
@@ -50,8 +65,21 @@ public class MainActivity extends AppCompatActivity {
 
                         VKList list = (VKList) response.parsedModel;
 
-                        ArrayAdapter<String> arrayAdapter = new ArrayAdapter<String>(MainActivity.this, android.R.layout.simple_expandable_list_item_1, list);
-                        listView.setAdapter(arrayAdapter);
+                        for(int i = 0; i<list.size(); i++){
+                            System.out.println("!!!!!!!!" + list.get(i).fields);
+                            TaskModel taskModel = new TaskModel();
+                            try {
+                                taskModel.setName(list.get(i).fields.getString("first_name"));
+                                taskModel.setLastName(list.get(i).fields.getString("last_name"));
+                                taskModel.setPhoto(list.get(i).fields.getString("photo"));
+                                taskModel.setOnline(list.get(i).fields.getString("online"));
+                                taskModels.add(taskModel);
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                            }
+                        }
+                        recyclerAdapter.onChange(taskModels);
+
                     }
                 });
             }
@@ -60,7 +88,17 @@ public class MainActivity extends AppCompatActivity {
             public void onError(VKError error) {
 
             }
-        }))
-            super.onActivityResult(requestCode, resultCode, data);
+        })) ;
+
+
+
     }
+
+    public void initRecyclerView() {
+        recyclerView = findViewById(R.id.list);
+        recyclerAdapter = new RecyclerAdapter(this,taskModels);
+        recyclerView.setLayoutManager(new LinearLayoutManager(this));
+        recyclerView.setAdapter(recyclerAdapter);
+    }
+
 }
